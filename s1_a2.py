@@ -12,5 +12,5 @@ while True:
     else:
         vertf2=cv2.flip(vertf1,-1)
         cv2.imshow("img",vertf2)
-    if cv2.waitKey(1000)&0xFF==ord('q'):
+    if cv2.waitKey(1)&0xFF==ord('q'):
         break
