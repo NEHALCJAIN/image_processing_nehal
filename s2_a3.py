@@ -6,7 +6,7 @@ end=time.time()
 while True:
     x,red=cv2.read()
     if end-start==5:
-        flipped=cv2.flip(red,-1)
+        flipped=cam.flip(red,-1)
         cv2.imshow('win',flipped)
     else:
         cv2.imshow('win',red)
