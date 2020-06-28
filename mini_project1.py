@@ -1,134 +1,161 @@
+from tkinter import *
+import tkinter as tk
+from tkinter import filedialog, Text
+from PIL import Image, ImageTk
 import cv2
 import numpy as np
-import tkinter as tk
-from tkinter import filedialog
-import pytesseract
+import pytesseract as pt
 from pytesseract import Output
 
 
-count=0
-
-imgage= np.array ([0],np.uint8)
-crop = np.array ([0],np.uint8)
-display = np.array ([0],np.uint8)
-clicks = np.zeros((4, 2),np.float32)
 
 
-
-def image_opening():
-    global imgage
-
-    img= filedialog.askopenfilename (initialdir = 'E:\giu', title = 'Select Image', filetypes = (('JPG', '*.jpg'), ('All files', '*.*')))
-    imgage = cv2.imread (img)
-
-    cv2.namedWindow ('OG', cv2.WINDOW_NORMAL)
-    cv2.imshow ('OG', imgage)
-
-
+def open():
+    global img, cropped
+    filename = filedialog.askopenfilename(initialdir='E://', title='Select an Image',
+                                          filetypes=(('JPG', '*.jpg'), ('All files', '*.*')))
+    print(filename)
+    image = cv2.imread(filename)
+    cropped = image.copy()
+    cv2.imshow('frame', image)
+    cv2.waitKey(0)
 
 
-
-def man_tran():
-    cv2.setMouseCallback ('OG', clicking)
-
-
-
-
-def clicking(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        global count
-        global clicks
-        global imgage
-
-        if (count< 4):
-            clicks[count] = [x, y]
-            count+= 1
-            print ('you clicked pts')
-            imgCopy = np.copy (imgage)
-            cv2.imshow ('OG', imgCopy)
-
-            if np.all (clicks):
-                warping ()
-        else:
-            pass
+def blur():
+    global cropped, image
+    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    kernel = np.ones((2, 2))
+    gaussian_blur = cv2.GaussianBlur(image_gray, (5, 5), 2)
+    cropped = gaussian_blur.copy()
+    cv2.imshow('frame', gaussian_blur)
 
 
-def warping():
-    global clicks
-    global imgage
-    global crop
+def auto_crop():
+    global cropped, image
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    kernel = np.ones((5, 5))
+    gaussian_blur = cv2.GaussianBlur(image, (5, 5), 2)
 
-    warpedPoints = np.array ([(0, 0), (720, 0), (0,1080), (720, 1080)], dtype = np.float32)
+    edge = cv2.Canny(gaussian_blur, 40, 280)
+    contours, hierarchy = cv2.findContours(edge, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    perspective = cv2.getPerspectiveTransform (clicks, warpedPoints)
-    warped = cv2.warpPerspective (imgage, perspective, (720, 1080))
+    areas = [cv2.contourArea(c) for c in contours]
+    max_index = np.argmax(areas)
+    max_contour = contours[max_index]
+    perimeter = cv2.arcLength(max_contour, True)
+    ROI = cv2.approxPolyDP(max_contour, 0.01 * perimeter, True)
 
-    global display
-    display = warped
-    img_display()
-    crop= warped
+    cv2.drawContours(img, [ROI], -1, (0, 255, 0), 2)
 
+    pts_1 = np.array([ROI[0], ROI[1], ROI[3], ROI[2]], np.float32)
+    pts_2 = np.array([(0, 0), (500, 0), (0, 500), (500, 500)], np.float32)
 
+    perspective = cv2.getPerspectiveTransform(pts_1, pts_2)
+    transformed = cv2.warpPerspective(perspective, (500, 500))
 
-def img_display():
-    global display
-
-    cv2.namedWindow ('crop', cv2.WINDOW_NORMAL)
-    cv2.imshow ('crop', display)
-
-
-def saveImage ():
-    global display
-    cv2.imwrite('new1.jpg', display)
+    cv2.imshow('output', transformed)
 
 
-def showText ():
-    global crop
+def manual_crop():
+    pts = []
 
-    croppedGrey = cv2.cvtColor (crop, cv2.COLOR_BGR2GRAY)
-    thresh = cv2.adaptiveThreshold (croppedGrey, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 201, 35)
-    data = pytesseract.image_to_data (thresh, output_type = Output.DICT)
-    numberWord = len (data['text'])
+    def mouse(event, x, y, flags, param):
+        global cropped, image
+        if event == cv2.EVENT_LBUTTONDOWN:
+            pts.append((x, y))
+        if len(pts) == 4:
+            warp(pts)
 
-    for i in range (numberWord):
-        x, y, width, height = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
-        cv2.rectangle (crop, (x, y), (x+width, y+height), (255, 0, 0), 1)
+    def warp(pts):
+        global cropped, image
+        pts_1 = np.array([pts[0], pts[1], pts[3], pts[2]], np.float32)
+        pts_2 = np.array([(0, 0), (720, 0), (0, 720), (720, 720)], np.float32)
 
-    global display
-    display = crop
-    img_display()
+        perspective = cv2.getPerspectiveTransform(pts_1, pts_2)
+        transformed = cv2.warpPerspective(img, perspective, (720, 720))
+
+        cropped = transformed.copy()
+        cv2.imshow('frame', transformed)
+
+    cv2.namedWindow('frame')
+    cv2.setMouseCallback('frame', mouse)
+
+
+def OCR_btn():
+    global cropped, text
+    ret, global_thresh = cv2.threshold(cropped, 170, 255, cv2.THRESH_BINARY)
+    text = pt.image_to_string(global_thresh, lang='eng')
+    data = pt.image_to_data(global_thresh, output_type=Output.DICT)
+    no_word = len(data['text'])
+
+    for i in range(no_word):
+        if int(data['conf'][i]) > 50:
+            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+            cv2.rectangle(global_thresh, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.imshow('frame', global_thresh)
+            cv2.waitKey(200)
+    'cropped=global_thresh.copy()'
+
+
+def show_text():
+    global text
+    textbox = tk.Frame(frame, bg='green')
+    textbox.place(relx=0.2, rely=0.2, relwidth=0.6, relheight=0.6)
+    textframe = Text(textbox, bg='white')
+    textframe.insert('1.0', text)
+    textframe.pack()
+
+
+def save():
+    global cropped
+    filename = filedialog.asksaveasfilename(initialdir='E:\giu', title='Save File',
+                                            filetypes=(('JPG', '*.jpg'), ('All files', '*.*')))
+    print(filename)
+    cv2.imwrite(filename, cropped)
 
 
 
-def closeAllWindows():
+
+def Close_All_Windows():
     cv2.destroyAllWindows()
 
-
-
-root =tk.Tk()
-canvas = tk.Canvas (root, height = 720, width = 1080 ,bg = 'green')
+root = tk.Tk()
+root.title('OCR')
+image = np.zeros((), np.uint8)
+cropped = np.zeros((), np.uint8)
+canvas = tk.Canvas(root, height=720, width=1080, bg='green')
 canvas.pack()
-
-frame = tk.Frame(canvas, bg='white')
-frame.place(relx=0.1, rely=0.05, relwidth=0.6, relheight=0.9)
-
-image_opening = tk.Button (canvas, text = 'Open Image', padx = 10, pady = 10, command = image_opening)
-image_opening.place (relx = 0.9, rely = 0.1, anchor = 'n')
-
-man_tran= tk.Button (canvas, text = 'Manual Crop', padx = 10, pady = 10, command = man_tran)
-man_tran.place (relx = 0.9, rely = 0.3, anchor = 'n')
-
-saveImage = tk.Button (canvas, text = 'Save Image', padx = 10, pady = 10, command = saveImage)
-saveImage.place (relx = 0.9, rely = 0.5, anchor = 'n')
+frame = tk.Frame(root, bg='black')
+frame.place(relwidth=0.6, relheight=0.8, relx=0.3, rely=0.05)
+textbox = tk.Frame(frame, bg='gray')
+textbox.place(relwidth=0.6, relheight=0.6, relx=0.2, rely=0.2)
 
 
-showText = tk.Button (canvas, text = 'Show Text', padx = 10, pady = 10, command = showText)
-showText.place (relx = 0.9, rely = 0.7, anchor = 'n')
+label = tk.Label(frame, text='TEXT ', fg='black', bg='white', font=('Arial', 20))
+label.place(relx=0.4, rely=0.1)
 
-closeWindows = tk.Button (canvas, text = 'Close All Windows', padx = 10, pady = 10, command = closeAllWindows)
-closeWindows.place (relx = 0.9, rely = 0.9, anchor = 'n')
+open_img = tk.Button(canvas, text='Open Image', fg='black', padx=5, pady=5, command=open)
+open_img.place(relx=0.04, rely=0.1)
 
+blur_img = tk.Button(canvas, text='Blur Image', fg='black', padx=5, pady=5, command=blur)
+blur_img.place(relx=0.04, rely=0.2)
 
+auto_crop = tk.Button(canvas, text='Auto Crop', fg='black', padx=5, pady=5, command=auto_crop)
+auto_crop.place(relx=0.04, rely=0.3)
 
+manual_crop = tk.Button(canvas, text='Manual Crop', fg='black', padx=5, pady=5, command=manual_crop)
+manual_crop.place(relx=0.04, rely=0.4)
+
+OCR_ = tk.Button(canvas, text='OCR', fg='black', padx=20, pady=5, command=OCR_btn)
+OCR_.place(relx=0.4, rely=0.1)
+
+show_text = tk.Button(canvas, text='Show text', fg='black', padx=5, pady=5, command=show_text)
+show_text.place(relx=0.04, rely=0.5)
+
+save_img = tk.Button(canvas, text='Save Img', fg='black', padx=5, pady=5, command=save)
+save_img.place(relx=0.04, rely=0.6)
+
+Close_All_Windows_btn = tk.Button(canvas, text='Close Windows', padx=10, pady=10, command=Close_All_Windows)
+Close_All_Windows_btn.place(relx=0.04, rely=0.7)
 
 root.mainloop()
