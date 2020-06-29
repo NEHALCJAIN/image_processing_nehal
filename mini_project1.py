@@ -1,15 +1,15 @@
 from tkinter import *
+import cv2
+import numpy as np
 import tkinter as tk
 from tkinter import filedialog, Text
 from PIL import Image, ImageTk
-import cv2
-import numpy as np
 import pytesseract
 from pytesseract import Output
-pytesseract.pytesseract.tesseract_cmd='C:\Program Files\Tesseract-OCR'
+pytesseract.pytesseract.tesseract_cmd='C:\Program Files\Tesseract-OCR\\Tesseract.exe'
 
 
-def open_img():
+def openimg():
     filename = filedialog.askopenfilename(initialdir='/Users/Desktop/', title='Select an Image',
                                           filetypes=(('JPG', '*.jpg'), ('All files', '*.*')))
     print(filename)
@@ -20,7 +20,7 @@ def open_img():
     cv2.waitKey(0)
 
 
-def blur_img():
+def blurimg():
     global cropped, image
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     kernel = np.ones((2, 2))
@@ -29,7 +29,7 @@ def blur_img():
     cv2.imshow('blur', gaussian_blur)
 
 
-def auto_crop():
+def autocrop():
     global crop_auto, image
 
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -58,7 +58,7 @@ def auto_crop():
     return (crop_auto)
 
 
-def manual_crop():
+def manualcrop():
     global crop_manual, image
     pts = []
 
@@ -74,9 +74,9 @@ def manual_crop():
             if len(pts) == 4:
                 print(pts)
                 pt1 = np.array([pts[0], pts[1], pts[3], pts[2]], np.float32)
-                pt2 = np.array([(0, 0), (700, 0), (0, 600), (700, 600)], np.float32)
+                pt2 = np.array([(0, 0), (720, 0), (0, 720), (720, 720)], np.float32)
                 pers = cv2.getPerspectiveTransform(pt1, pt2)
-                crop_manual = cv2.warpPerspective(image, pers, (700, 600))
+                crop_manual = cv2.warpPerspective(image, pers, (720, 720))
                 cv2.imshow('Manual Crop', crop_manual)
                 return (crop_manual)
 
@@ -85,7 +85,7 @@ def manual_crop():
     cv2.setMouseCallback('frame', mouse)
 
 
-def OCR_btn():
+def OCRbtn():
     global image, text, ocr_image
     ret, global_thresh = cv2.threshold(image, 170, 255, cv2.THRESH_BINARY)
     text = pytesseract.image_to_string(global_thresh, lang='eng')
@@ -102,7 +102,7 @@ def OCR_btn():
     ocr_image = global_thresh.copy()
 
 
-def show_text():
+def showtext():
     global text
     textbox = tk.Frame(frame, bg='#FDFFD6')
     textbox.place(relx=0.2, rely=0.2, relwidth=0.6, relheight=0.6)
@@ -111,7 +111,7 @@ def show_text():
     textframe.pack()
 
 
-def save_img():
+def saveimg():
     global ocr_image
     filename = filedialog.asksaveasfilename(initialdir='/Users/Desktop/', title='Save File',
                                             filetypes=(('JPG', '*.jpg'), ('All files', '*.*')))
@@ -120,7 +120,7 @@ def save_img():
 
 
 
-def Close_All_Windows():
+def Closewindows():
     cv2.destroyAllWindows()
 
 root = tk.Tk()
@@ -140,28 +140,28 @@ textbox.place(relwidth=0.6, relheight=0.6, relx=0.2, rely=0.2)
 label = tk.Label(frame, text='TEXT', fg='black', bg='white', font=('Arial black', 20))
 label.place(relx=0.2, rely=0.1)
 
-open_img_btn = tk.Button(canvas, text='Open Image', fg='black', padx=5, pady=5, command=open_img)
+open_img_btn = tk.Button(canvas, text='Open Image', fg='black', padx=5, pady=5, command=openimg)
 open_img_btn.place(relx=0.04, rely=0.1)
 
-blur_img_btn = tk.Button(canvas, text='Blur Image', fg='black', padx=5, pady=5, command=blur_img)
+blur_img_btn = tk.Button(canvas, text='Blur Image', fg='black', padx=5, pady=5, command=blurimg)
 blur_img_btn.place(relx=0.038, rely=0.2)
 
-auto_crop_btn = tk.Button(canvas, text='Auto Crop', fg='black', padx=5, pady=5, command=auto_crop)
+auto_crop_btn = tk.Button(canvas, text='Auto Crop', fg='black', padx=5, pady=5, command=autocrop)
 auto_crop_btn.place(relx=0.038, rely=0.3)
 
-manual_crop_btn = tk.Button(canvas, text='Manual Crop', fg='black', padx=5, pady=5, command=manual_crop)
+manual_crop_btn = tk.Button(canvas, text='Manual Crop', fg='black', padx=5, pady=5, command=manualcrop)
 manual_crop_btn.place(relx=0.035, rely=0.4)
 
-OCR_btn = tk.Button(canvas, text='OCR', fg='black', padx=20, pady=5, command=OCR_btn)
-OCR_btn.place(relx=0.85, rely=0.1)
+OCR_ = tk.Button(canvas, text='OCR', fg='black', padx=20, pady=5, command=OCRbtn)
+OCR_.place(relx=0.85, rely=0.1)
 
-show_text_btn = tk.Button(canvas, text='Show text', fg='black', padx=5, pady=5, command=show_text)
-show_text_btn.place(relx=0.85, rely=0.2)
+showtext = tk.Button(canvas, text='Show text', fg='black', padx=5, pady=5, command=showtext)
+showtext.place(relx=0.85, rely=0.2)
 
-save_img_btn = tk.Button(canvas, text='Save Image', fg='black', padx=5, pady=5, command=save_img)
-save_img_btn.place(relx=0.85, rely=0.3)
+saveimg = tk.Button(canvas, text='Save Image', fg='black', padx=5, pady=5, command=saveimg)
+saveimg.place(relx=0.85, rely=0.3)
 
-Close_All_Windows_btn = tk.Button(canvas, text='Close All Windows', padx=10, pady=10, command=Close_All_Windows)
-Close_All_Windows_btn.place(relx=0.8, rely=0.9)
+CloseAllWindows= tk.Button(canvas, text='Close All Windows', padx=10, pady=10, command=Closewindows)
+CloseAllWindows.place(relx=0.8, rely=0.9)
 
 root.mainloop()
